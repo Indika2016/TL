@@ -1,50 +1,59 @@
-# Source - https://stackoverflow.com/a/68359091
-# Posted by Big-Omelette, modified by community. See post 'Timeline' for change history
-# Retrieved 2026-06-16, License - CC BY-SA 4.0
-
-name: CI
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  schedule:
-    - cron: '0 0 1,15 * *'
+name: Build APK Natively
+on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      # used to cache dependencies with a timeout
-      - name: Get Date
-        id: get-date
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Critical System Build Dependencies
         run: |
-          echo "::set-output name=date::$(/bin/date -u "+%Y%m%d")"
-        shell: bash
+          sudo apt-get update
+          sudo apt-get install -y build-essential git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev sqlite3 bzip2 libbz2-dev liblzma-dev python3-dev
 
-      - name: Cache Buildozer global directory
-        uses: actions/cache@v2
-        with:
-          path: .buildozer_global
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }} # Replace with your path
+      - name: Install Stable Buildozer and Cython
+        run: |
+          pip install --upgrade pip virtualenv setuptools
+          pip install "cython<3.0.0" buildozer Kivy
 
-      - uses: actions/cache@v2
-        with:
-          path: .buildozer
-          key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
+      - name: Fresh Setup and Buildozer Configuration
+        run: |
+          # 1. Completely clear out old cached configurations or corrupt specs
+          rm -f buildozer.spec
+          rm -rf .buildozer/
+          
+          # 2. Generate a perfectly clean, brand new spec file
+          buildozer init
+          
+          # 3. Configure settings carefully without disrupting file format structure
+          # Set explicit requirements to stable Kivy and Python combinations
+          sed -i 's/^requirements = .*/requirements = python3==3.11.9,kivy==2.3.0,sdl2,sdl2_image,sdl2_mixer,sdl2_ttf/' buildozer.spec
+          
+          # Auto accept the Android SDK license agreement
+          sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
+          sed -i 's/android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
+          
+          # Force verbose logging so we can see inside the compilation process
+          sed -i 's/^log_level = .*/log_level = 2/' buildozer.spec
 
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: buildozer android debug
-          buildozer_version: master
+      - name: Force Auto-Accept Android SDK Licenses
+        run: |
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          yes | buildozer android p4a -- get-licenses || true
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+      - name: Build Android APK
+        run: |
+          buildozer -v android debug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: package
-          path: ${{ steps.buildozer.outputs.filename }}
+          name: BakeryApp-APK
+          path: bin/*.apk
