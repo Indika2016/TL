@@ -1,7 +1,7 @@
 from kivy.app import App
 from kivy.uix.button import Button
 
-class TestBuildApp(App):
+class MyMainApp(App):
     def build(self):
         # A simple, full-screen button to verify the APK runs and registers touches
         return Button(
@@ -17,4 +17,4 @@ class TestBuildApp(App):
         App.get_running_app().stop()
 
 if __name__ == '__main__':
-    TestBuildApp().run()
+    MyMainApp().run()
