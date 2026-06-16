@@ -26,9 +26,17 @@ jobs:
         run: |
           if [ ! -f buildozer.spec ]; then
             buildozer init
-            # Automatically accept Android SDK licenses cleanly during automated CI running
-            sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
           fi
+          # Ensure license acceptance is explicitly set to True inside the spec file
+          sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
+          sed -i 's/android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
+
+      - name: Force Auto-Accept Android SDK Licenses
+        run: |
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          # Pre-approve the SDK licenses directly into the system environment
+          yes | buildozer android p4a -- get-licenses || true
 
       - name: Build Android APK
         run: |
