@@ -1,59 +1,89 @@
 name: Build APK Natively
-on: [push, workflow_dispatch]
+
+on:
+  push:
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install Critical System Build Dependencies
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev sqlite3 bzip2 libbz2-dev liblzma-dev python3-dev
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            zip \
+            unzip \
+            openjdk-17-jdk \
+            autoconf \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libgdbm-dev \
+            libnss3-dev \
+            libssl-dev \
+            libreadline-dev \
+            libffi-dev \
+            libsqlite3-dev \
+            sqlite3 \
+            bzip2 \
+            libbz2-dev \
+            liblzma-dev \
+            python3-dev
 
-      - name: Install Stable Buildozer and Cython
+      - name: Install Compatible Build Tools
         run: |
-          pip install --upgrade pip virtualenv setuptools
-          pip install "cython<3.0.0" buildozer Kivy
+          python -m pip install --upgrade pip setuptools wheel
 
-      - name: Fresh Setup and Buildozer Configuration
+          pip uninstall -y buildozer python-for-android cython || true
+
+          pip install cython==0.29.36
+          pip install buildozer==1.5.0
+          pip install python-for-android==2024.01.21
+
+      - name: Verify Versions
         run: |
-          # 1. Completely clear out old cached configurations or corrupt specs
+          buildozer --version
+          python -m pythonforandroid.toolchain --help
+
+      - name: Clean Previous Build
+        run: |
+          rm -rf .buildozer
           rm -f buildozer.spec
-          rm -rf .buildozer/
-          
-          # 2. Generate a perfectly clean, brand new spec file
-          buildozer init
-          
-          # 3. Configure settings carefully without disrupting file format structure
-          # Set explicit requirements to stable Kivy and Python combinations
-          sed -i 's/^requirements = .*/requirements = python3==3.11.9,kivy==2.3.0,sdl2,sdl2_image,sdl2_mixer,sdl2_ttf/' buildozer.spec
-          
-          # Auto accept the Android SDK license agreement
-          sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
-          sed -i 's/android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
-          
-          # Force verbose logging so we can see inside the compilation process
-          sed -i 's/^log_level = .*/log_level = 2/' buildozer.spec
 
-      - name: Force Auto-Accept Android SDK Licenses
+      - name: Create Buildozer Spec
         run: |
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          yes | buildozer android p4a -- get-licenses || true
+          buildozer init
 
-      - name: Build Android APK
+          sed -i 's/^title = .*/title = MyMainApp/' buildozer.spec
+          sed -i 's/^package.name = .*/package.name = mymainapp/' buildozer.spec
+
+          sed -i 's/^requirements = .*/requirements = python3,kivy/' buildozer.spec
+
+          sed -i 's/^#source.include_exts =.*/source.include_exts = py,png,jpg,kv,atlas/' buildozer.spec
+
+          echo "android.api = 34" >> buildozer.spec
+          echo "android.minapi = 24" >> buildozer.spec
+          echo "android.ndk = 25b" >> buildozer.spec
+          echo "android.ndk_api = 24" >> buildozer.spec
+
+      - name: Build APK
         run: |
           buildozer -v android debug
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: BakeryApp-APK
+          name: APK
           path: bin/*.apk
