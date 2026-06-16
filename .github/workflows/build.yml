@@ -3,7 +3,7 @@ on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -22,20 +22,22 @@ jobs:
           pip install --upgrade pip
           pip install buildozer cython==0.29.33 Kivy
 
-      - name: Initialize Buildozer Profile
+      - name: Initialize and Configure Buildozer Profile
         run: |
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
-          # Ensure license acceptance is explicitly set to True inside the spec file
+          # 1. Force auto-accept licenses
           sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
           sed -i 's/android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
+          
+          # 2. Configure requirements explicitly to include core dependencies (python3, kivy, sdl2, image/mixer support)
+          sed -i 's/requirements = python3,kivy/requirements = python3,kivy,sdl2,sdl2_image,sdl2_mixer,sdl2_ttf/' buildozer.spec
 
       - name: Force Auto-Accept Android SDK Licenses
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
-          # Pre-approve the SDK licenses directly into the system environment
           yes | buildozer android p4a -- get-licenses || true
 
       - name: Build Android APK
