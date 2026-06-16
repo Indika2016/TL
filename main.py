@@ -1,41 +1,44 @@
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
-from kivy.core.window import Window
-
-# Simulating a mobile portrait screen layout
-Window.size = (360, 640)
 
 # Global variables to pass results between popup engines dynamically
 last_calculated_ff = 0.0
 last_calculated_wt = 0.0
 
-# --- SCREEN 1: LOGIN ---
+# --- SCREEN 1: LOGIN (FIXED SIZING) ---
 class LoginScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=40, spacing=15)
         
-        layout.add_widget(Label(text="WELCOME", font_size=40, color=(0, 0.7, 1, 1)))
+        # Outer anchor layout forces the login box to remain perfectly centered on mobile
+        root_anchor = AnchorLayout(anchor_x='center', anchor_y='center', padding=20)
         
-        self.username = TextInput(hint_text="Username", multiline=False, size_hint_y=None, height=50)
-        layout.add_widget(self.username)
+        # Main login box restricted to 85% width and 50% height of any screen size
+        login_box = BoxLayout(orientation='vertical', spacing=15, size_hint=(0.85, 0.5))
         
-        self.password = TextInput(hint_text="Password", password=True, multiline=False, size_hint_y=None, height=50)
-        layout.add_widget(self.password)
+        login_box.add_widget(Label(text="WELCOME", font_size=32, bold=True, color=(0, 0.7, 1, 1), size_hint_y=0.2))
         
-        btn = Button(text="LOGIN", size_hint_y=None, height=60, background_color=(0, 0.7, 1, 1))
+        self.username = TextInput(hint_text="Username", multiline=False, size_hint_y=0.18, font_size=18, padding=[10, 10, 10, 10])
+        login_box.add_widget(self.username)
+        
+        self.password = TextInput(hint_text="Password", password=True, multiline=False, size_hint_y=0.18, font_size=18, padding=[10, 10, 10, 10])
+        login_box.add_widget(self.password)
+        
+        btn = Button(text="LOGIN", size_hint_y=0.2, font_size=20, bold=True, background_color=(0, 0.7, 1, 1))
         btn.bind(on_press=self.check_login)
-        layout.add_widget(btn)
+        login_box.add_widget(btn)
         
-        self.error_msg = Label(text="", color=(1, 0, 0, 1))
-        layout.add_widget(self.error_msg)
+        self.error_msg = Label(text="", color=(1, 0, 0, 1), size_hint_y=0.12, font_size=16)
+        login_box.add_widget(self.error_msg)
         
-        self.add_widget(layout)
+        root_anchor.add_widget(login_box)
+        self.add_widget(root_anchor)
 
     def check_login(self, instance):
         if self.username.text == "admin" and self.password.text == "123":
@@ -44,16 +47,17 @@ class LoginScreen(Screen):
             self.error_msg.text = "Try again! (admin / 123)"
 
 
-# --- SCREEN 2: DASHBOARD (4 LARGE BOXES) ---
+# --- SCREEN 2: DASHBOARD (FIXED SIZING) ---
 class DashboardScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
-        main_layout = BoxLayout(orientation='vertical', padding=15, spacing=15)
-        main_layout.add_widget(Label(text="Select Calculator", font_size=24, size_hint_y=None, height=40))
+        main_layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
+        main_layout.add_widget(Label(text="Select Calculator", font_size=26, bold=True, size_hint_y=0.1))
         
         from kivy.uix.gridlayout import GridLayout
-        grid = GridLayout(cols=2, rows=2, spacing=15)
+        # Grid takes up 75% of the screen height dynamically
+        grid = GridLayout(cols=2, rows=2, spacing=15, size_hint_y=0.75)
         
         btn1 = Button(text="01.\nFF Calculator", halign='center', font_size=18, background_color=(0.1, 0.5, 0.8, 1))
         btn2 = Button(text="02.\nWater Temp.\nCalculator", halign='center', font_size=18, background_color=(0.1, 0.6, 0.6, 1))
@@ -65,7 +69,6 @@ class DashboardScreen(Screen):
         btn3.bind(on_press=self.open_ice_temp_popup)
         btn4.bind(on_press=self.open_placeholder_msg)
         
-        # Add buttons to grid safely one by one
         grid.add_widget(btn1)
         grid.add_widget(btn2)
         grid.add_widget(btn3)
@@ -73,7 +76,7 @@ class DashboardScreen(Screen):
         
         main_layout.add_widget(grid)
         
-        logout_btn = Button(text="Logout", size_hint_y=None, height=45, background_color=(0.8, 0.2, 0.2, 1))
+        logout_btn = Button(text="Logout", size_hint_y=0.1, font_size=18, background_color=(0.8, 0.2, 0.2, 1))
         logout_btn.bind(on_press=self.logout)
         main_layout.add_widget(logout_btn)
         
@@ -130,7 +133,7 @@ class DashboardScreen(Screen):
             adt_val = float(self.input_adt.text) if self.input_adt.text else 0.0
             ff_result = (3 * adt_val) - ft_val - wt_val - ft_val
             
-            last_calculated_ff = ff_result  # Saving globally for Box 2 to fetch
+            last_calculated_ff = ff_result
             self.input_ff.text = str(round(ff_result, 2))
         except ValueError:
             self.input_ff.text = "Error"
@@ -157,10 +160,8 @@ class DashboardScreen(Screen):
         row3.add_widget(self.input_ft_water)
         popup_layout.add_widget(row3)
         
-        # Row 4: FF (Input Box + "Get" Button next to it)
         row4 = BoxLayout(orientation='horizontal', size_hint_y=None, height=45, spacing=10)
         row4.add_widget(Label(text="04. FF:", size_hint_x=0.4))
-        # Split remaining 60% space: 45% for text layout field, 15% for the link button
         self.input_ff_water = TextInput(hint_text="Value", multiline=False, input_filter='float', size_hint_x=0.45)
         get_ff_btn = Button(text="Get", size_hint_x=0.15, background_color=(0, 0.7, 1, 1))
         get_ff_btn.bind(on_press=self.fetch_ff_data)
@@ -213,21 +214,18 @@ class DashboardScreen(Screen):
     def open_ice_temp_popup(self, instance):
         popup_layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
         
-        # Row 1: Req Water Weight
         row1 = BoxLayout(orientation='horizontal', size_hint_y=None, height=45, spacing=10)
         row1.add_widget(Label(text="01. Req Water Wt:", size_hint_x=0.4))
         self.input_req_water = TextInput(hint_text="Enter Weight", multiline=False, input_filter='float', size_hint_x=0.6)
         row1.add_widget(self.input_req_water)
         popup_layout.add_widget(row1)
         
-        # Row 2: WT
         row2 = BoxLayout(orientation='horizontal', size_hint_y=None, height=45, spacing=10)
         row2.add_widget(Label(text="02. WT:", size_hint_x=0.4))
         self.input_ice_wt = TextInput(hint_text="Enter WT", multiline=False, input_filter='float', size_hint_x=0.6)
         row2.add_widget(self.input_ice_wt)
         popup_layout.add_widget(row2)
         
-        # Row 3: Cal WT (With Get Button)
         row3 = BoxLayout(orientation='horizontal', size_hint_y=None, height=45, spacing=10)
         row3.add_widget(Label(text="03. Cal WT:", size_hint_x=0.4))
         self.input_ice_cal_wt = TextInput(hint_text="Value", multiline=False, input_filter='float', size_hint_x=0.45)
@@ -237,14 +235,12 @@ class DashboardScreen(Screen):
         row3.add_widget(get_wt_btn)
         popup_layout.add_widget(row3)
         
-        # Row 4: Calculated Ice Weight
         row4 = BoxLayout(orientation='horizontal', size_hint_y=None, height=45, spacing=10)
         row4.add_widget(Label(text="04. Calc Ice Wt:", size_hint_x=0.4))
         self.output_calc_ice = TextInput(hint_text="Result", multiline=False, readonly=True, size_hint_x=0.6, background_color=(0.9, 0.9, 0.9, 1))
         row4.add_widget(self.output_calc_ice)
         popup_layout.add_widget(row4)
         
-        # Row 5: Calculated Water Weight
         row5 = BoxLayout(orientation='horizontal', size_hint_y=None, height=45, spacing=10)
         row5.add_widget(Label(text="05. Calc Water Wt:", size_hint_x=0.4))
         self.output_calc_water = TextInput(hint_text="Result", multiline=False, readonly=True, size_hint_x=0.6, background_color=(0.9, 0.9, 0.9, 1))
