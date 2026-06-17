@@ -12,21 +12,17 @@ from kivy.metrics import dp  # imported to handle device-independent pixel scali
 last_calculated_ff = 0.0
 last_calculated_wt = 0.0
 
-# --- SCREEN 1: LOGIN (RESPONSIVE & BALANCED) ---
+# --- SCREEN 1: LOGIN ---
 class LoginScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
-        # Outer layout forces centering on all mobile displays
         root_anchor = AnchorLayout(anchor_x='center', anchor_y='center', padding=dp(24))
-        
-        # Setting a rigid width hint but letting height respond naturally to spacing
         login_box = BoxLayout(orientation='vertical', spacing=dp(12), size_hint=(0.85, None))
         login_box.bind(minimum_height=login_box.setter('height'))
         
         login_box.add_widget(Label(text="WELCOME", font_size=dp(28), bold=True, color=(0, 0.7, 1, 1), size_hint_y=None, height=dp(50)))
         
-        # Using standardized mobile-friendly input field heights (dp(45))
         self.username = TextInput(hint_text="Username", multiline=False, font_size=dp(16), size_hint_y=None, height=dp(45), padding=[dp(10), dp(10), dp(10), dp(10)])
         login_box.add_widget(self.username)
         
@@ -50,7 +46,7 @@ class LoginScreen(Screen):
             self.error_msg.text = "Try again! (admin / 123)"
 
 
-# --- SCREEN 2: DASHBOARD (RESPONSIVE GRID & LARGER FONTS) ---
+# --- SCREEN 2: DASHBOARD ---
 class DashboardScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -59,16 +55,13 @@ class DashboardScreen(Screen):
         main_layout.add_widget(Label(text="Select Calculator", font_size=dp(24), bold=True, size_hint_y=0.15))
         
         from kivy.uix.gridlayout import GridLayout
-        # Clean Grid using proportional sizing constraints
         grid = GridLayout(cols=2, rows=2, spacing=dp(16), size_hint_y=0.7)
         
-        # Bumped button text font sizes to dp(18) with line alignment parameters
         btn1 = Button(text="01.\nFF Calculator", halign='center', valign='middle', font_size=dp(18), background_color=(0.1, 0.5, 0.8, 1))
         btn2 = Button(text="02.\nWater Temp.\nCalculator", halign='center', valign='middle', font_size=dp(18), background_color=(0.1, 0.6, 0.6, 1))
         btn3 = Button(text="03.\nIce Temp.\nCalculator", halign='center', valign='middle', font_size=dp(18), background_color=(0.2, 0.5, 0.7, 1))
         btn4 = Button(text="04.\nRecipe\nCalculator", halign='center', valign='middle', font_size=dp(18), background_color=(0.3, 0.4, 0.6, 1))
         
-        # Ensure multi-line strings align neatly in the middle of grids
         for btn in [btn1, btn2, btn3, btn4]:
             btn.bind(size=btn.setter('text_size'))
             
@@ -120,7 +113,7 @@ class DashboardScreen(Screen):
         action_layout = BoxLayout(orientation='horizontal', spacing=dp(15), size_hint_y=None, height=dp(50))
         calc_btn = Button(text="Calculate", background_color=(0.2, 0.8, 0.2, 1), font_size=dp(16))
         calc_btn.bind(on_press=self.process_ff_calculation)
-        close_btn = Button(text="Close", background_color=(0.8, 0.2, 0.2, 1), font_size=dp(16))
+        close_btn = Button(text="Close", background_color=(0.8, 0.2, 0.2, 1), font_size=16)
         
         action_layout.add_widget(calc_btn)
         action_layout.add_widget(close_btn)
@@ -147,7 +140,6 @@ class DashboardScreen(Screen):
     def open_water_temp_popup(self, instance):
         popup_layout = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(10))
         
-        # Row 1-3 Layout Structure
         water_fields = [
             ("01. DDT:", "Enter DDT"),
             ("02. RT:", "Enter RT"),
@@ -162,7 +154,6 @@ class DashboardScreen(Screen):
             row.add_widget(txt)
             popup_layout.add_widget(row)
             
-        # Row 4: FF (with optimized responsive link button size)
         row4 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
         row4.add_widget(Label(text="04. FF:", size_hint_x=0.35, font_size=dp(16)))
         self.input_ff_water = TextInput(hint_text="Value", multiline=False, input_filter='float', size_hint_x=0.45, font_size=dp(15))
@@ -172,7 +163,6 @@ class DashboardScreen(Screen):
         row4.add_widget(get_ff_btn)
         popup_layout.add_widget(row4)
         
-        # Row 5: Cal WT
         row5 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
         row5.add_widget(Label(text="05. Cal WT:", size_hint_x=0.35, font_size=dp(16)))
         self.input_cal_wt = TextInput(hint_text="Result", multiline=False, readonly=True, size_hint_x=0.65, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
@@ -214,45 +204,50 @@ class DashboardScreen(Screen):
             self.input_cal_wt.text = "Error"
 
 
-    # --- POPUP DESIGN FOR BOX 03: ICE TEMP CALCULATOR ---
+    # --- POPUP DESIGN FOR BOX 03: ICE TEMP CALCULATOR (FIXED LAYOUT) ---
     def open_ice_temp_popup(self, instance):
         popup_layout = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(10))
         
         # Row 1: Req Water Weight
         row1 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
-        row1.add_widget(Label(text="01. Req Water Wt:", size_hint_x=0.4, font_size=dp(15)))
-        self.input_req_water = TextInput(hint_text="Enter Weight", multiline=False, input_filter='float', font_size=dp(15))
+        row1.add_widget(Label(text="01. Req Water Wt:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle'))
+        self.input_req_water = TextInput(hint_text="Enter Weight", multiline=False, input_filter='float', size_hint_x=0.55, font_size=dp(15))
+        row1.children[1].bind(size=row1.children[1].setter('text_size'))  # align text
         row1.add_widget(self.input_req_water)
         popup_layout.add_widget(row1)
         
-        # Row 2: WT
-        row2 = BoxLayout(orientation='horizontal', size_hint_y=None, height=40, spacing=dp(10))
-        row2.add_widget(Label(text="02. WT:", size_hint_x=0.4, font_size=dp(15)))
-        self.input_ice_wt = TextInput(hint_text="Enter WT", multiline=False, input_filter='float', font_size=dp(15))
+        # Row 2: WT (FIXED: Added dp() to height and aligned proportions)
+        row2 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
+        row2.add_widget(Label(text="02. WT:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle'))
+        self.input_ice_wt = TextInput(hint_text="Enter WT", multiline=False, input_filter='float', size_hint_x=0.55, font_size=dp(15))
+        row2.children[1].bind(size=row2.children[1].setter('text_size'))
         row2.add_widget(self.input_ice_wt)
         popup_layout.add_widget(row2)
         
         # Row 3: Cal WT
         row3 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
-        row3.add_widget(Label(text="03. Cal WT:", size_hint_x=0.4, font_size=dp(15)))
-        self.input_ice_cal_wt = TextInput(hint_text="Value", multiline=False, input_filter='float', size_hint_x=0.4, font_size=dp(15))
+        row3.add_widget(Label(text="03. Cal WT:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle'))
+        self.input_ice_cal_wt = TextInput(hint_text="Value", multiline=False, input_filter='float', size_hint_x=0.35, font_size=dp(15))
         get_wt_btn = Button(text="Get", size_hint_x=0.2, font_size=dp(14), background_color=(0, 0.7, 1, 1))
         get_wt_btn.bind(on_press=self.fetch_wt_data)
+        row3.children[2].bind(size=row3.children[2].setter('text_size'))
         row3.add_widget(self.input_ice_cal_wt)
         row3.add_widget(get_wt_btn)
         popup_layout.add_widget(row3)
         
         # Row 4: Calculated Ice Weight
         row4 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
-        row4.add_widget(Label(text="04. Calc Ice Wt:", size_hint_x=0.4, font_size=dp(15)))
-        self.output_calc_ice = TextInput(hint_text="Result", multiline=False, readonly=True, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
+        row4.add_widget(Label(text="04. Calc Ice Wt:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle'))
+        self.output_calc_ice = TextInput(hint_text="Result", multiline=False, readonly=True, size_hint_x=0.55, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
+        row4.children[1].bind(size=row4.children[1].setter('text_size'))
         row4.add_widget(self.output_calc_ice)
         popup_layout.add_widget(row4)
         
         # Row 5: Calculated Water Weight
         row5 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
-        row5.add_widget(Label(text="05. Calc Water Wt:", size_hint_x=0.4, font_size=dp(15)))
-        self.output_calc_water = TextInput(hint_text="Result", multiline=False, readonly=True, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
+        row5.add_widget(Label(text="05. Calc Water Wt:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle'))
+        self.output_calc_water = TextInput(hint_text="Result", multiline=False, readonly=True, size_hint_x=0.55, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
+        row5.children[1].bind(size=row5.children[1].setter('text_size'))
         row5.add_widget(self.output_calc_water)
         popup_layout.add_widget(row5)
         
