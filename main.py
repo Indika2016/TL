@@ -1,3 +1,4 @@
+
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.boxlayout import BoxLayout
@@ -212,7 +213,7 @@ class DashboardScreen(Screen):
         row1 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
         row1.add_widget(Label(text="01. Req Water Wt:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle'))
         self.input_req_water = TextInput(hint_text="Enter Weight", multiline=False, input_filter='float', size_hint_x=0.55, font_size=dp(15))
-        row1.children[1].bind(size=row1.children[1].setter('text_size'))  # align text
+       # align text
         row1.add_widget(self.input_req_water)
         popup_layout.add_widget(row1)
         
@@ -220,7 +221,6 @@ class DashboardScreen(Screen):
         row2 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
         row2.add_widget(Label(text="02. WT:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle'))
         self.input_ice_wt = TextInput(hint_text="Enter WT", multiline=False, input_filter='float', size_hint_x=0.55, font_size=dp(15))
-        row2.children[1].bind(size=row2.children[1].setter('text_size'))
         row2.add_widget(self.input_ice_wt)
         popup_layout.add_widget(row2)
         
@@ -230,7 +230,6 @@ class DashboardScreen(Screen):
         self.input_ice_cal_wt = TextInput(hint_text="Value", multiline=False, input_filter='float', size_hint_x=0.35, font_size=dp(15))
         get_wt_btn = Button(text="Get", size_hint_x=0.2, font_size=dp(14), background_color=(0, 0.7, 1, 1))
         get_wt_btn.bind(on_press=self.fetch_wt_data)
-        row3.children[2].bind(size=row3.children[2].setter('text_size'))
         row3.add_widget(self.input_ice_cal_wt)
         row3.add_widget(get_wt_btn)
         popup_layout.add_widget(row3)
@@ -239,7 +238,6 @@ class DashboardScreen(Screen):
         row4 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
         row4.add_widget(Label(text="04. Calc Ice Wt:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle'))
         self.output_calc_ice = TextInput(hint_text="Result", multiline=False, readonly=True, size_hint_x=0.55, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
-        row4.children[1].bind(size=row4.children[1].setter('text_size'))
         row4.add_widget(self.output_calc_ice)
         popup_layout.add_widget(row4)
         
@@ -247,7 +245,6 @@ class DashboardScreen(Screen):
         row5 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
         row5.add_widget(Label(text="05. Calc Water Wt:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle'))
         self.output_calc_water = TextInput(hint_text="Result", multiline=False, readonly=True, size_hint_x=0.55, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
-        row5.children[1].bind(size=row5.children[1].setter('text_size'))
         row5.add_widget(self.output_calc_water)
         popup_layout.add_widget(row5)
         
