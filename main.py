@@ -1,3 +1,5 @@
+import json
+import os
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.boxlayout import BoxLayout
@@ -14,6 +16,9 @@ from kivy.metrics import dp
 # Global variables to pass results between popup engines dynamically
 last_calculated_ff = 0.0
 last_calculated_wt = 0.0
+
+# File name used for permanent local recipe storage
+DB_FILE_PATH = "recipes_db.json"
 
 # --- SCREEN 1: LOGIN ---
 class LoginScreen(Screen):
@@ -55,6 +60,7 @@ class DashboardScreen(Screen):
         super().__init__(**kwargs)
         
         self.saved_recipes_db = {}
+        self.load_recipes_from_disk()  # Permanent Storage Load
         self._calculating = False  
         
         main_layout = BoxLayout(orientation='vertical', padding=dp(16), spacing=dp(16))
@@ -87,6 +93,24 @@ class DashboardScreen(Screen):
         main_layout.add_widget(logout_btn)
         
         self.add_widget(main_layout)
+
+    # --- PERMANENT STORAGE MANAGEMENT ---
+    def load_recipes_from_disk(self):
+        if os.path.exists(DB_FILE_PATH):
+            try:
+                with open(DB_FILE_PATH, "r", encoding="utf-8") as f:
+                    self.saved_recipes_db = json.load(f)
+            except Exception:
+                self.saved_recipes_db = {}
+        else:
+            self.saved_recipes_db = {}
+
+    def save_recipes_to_disk(self):
+        try:
+            with open(DB_FILE_PATH, "w", encoding="utf-8") as f:
+                json.dump(self.saved_recipes_db, f, indent=4)
+        except Exception as e:
+            print(f"Error saving recipes to local file: {e}")
         
     # --- POPUP DESIGN FOR BOX 01: FF CALCULATOR ---
     def open_ff_popup(self, instance):
@@ -165,43 +189,36 @@ class DashboardScreen(Screen):
             row.add_widget(txt)
             popup_layout.add_widget(row)
             
-        row6 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
-        lbl5 = Label(text="04. FF:", size_hint_x=0.45, font_size=dp(16), halign='left', valign='middle')
+        row4 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
+        lbl4 = Label(text="04. FF:", size_hint_x=0.45, font_size=dp(16), halign='left', valign='middle')
+        lbl4.bind(size=lbl4.setter('text_size'))
+        self.input_w_ff = TextInput(text=str(last_calculated_ff), multiline=False, input_filter='float', size_hint_x=0.55, font_size=dp(15))
+        row4.add_widget(lbl4)
+        row4.add_widget(self.input_w_ff)
+        popup_layout.add_widget(row4)
+
+        row5 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
+        lbl5 = Label(text="05. Cal WT:", size_hint_x=0.45, font_size=dp(16), halign='left', valign='middle')
         lbl5.bind(size=lbl5.setter('text_size'))
-        self.input_ff_water = TextInput(hint_text="Value", multiline=False, input_filter='float', size_hint_x=0.35, font_size=dp(15))
-        get_ff_btn = Button(text="Get", size_hint_x=0.2, font_size=dp(14), background_color=(0, 0.7, 1, 1))
-        get_ff_btn.bind(on_press=self.fetch_ff_data)
-        row6.add_widget(lbl5)
-        row6.add_widget(self.input_ff_water)
-        row6.add_widget(get_ff_btn)
-        popup_layout.add_widget(row6)
-        
-        row7 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
-        lbl6 = Label(text="05. Cal WT:", size_hint_x=0.45, font_size=dp(16), halign='left', valign='middle')
-        lbl6.bind(size=lbl6.setter('text_size'))
-        self.input_cal_wt = TextInput(hint_text="Result", multiline=False, readonly=True, size_hint_x=0.55, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
-        row7.add_widget(lbl6)
-        row7.add_widget(self.input_cal_wt)
-        popup_layout.add_widget(row7)
-        
-        popup_layout.add_widget(Label()) 
+        self.input_w_wt = TextInput(hint_text="Result", multiline=False, readonly=True, size_hint_x=0.55, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
+        row5.add_widget(lbl5)
+        row5.add_widget(self.input_w_wt)
+        popup_layout.add_widget(row5)
+
+        popup_layout.add_widget(Label())
 
         action_layout = BoxLayout(orientation='horizontal', spacing=dp(15), size_hint_y=None, height=dp(50))
-        calc_btn = Button(text="Calculate", background_color=(0.1, 0.6, 0.6, 1), font_size=dp(16))
+        calc_btn = Button(text="Calculate", background_color=(0.2, 0.8, 0.2, 1), font_size=dp(16))
         calc_btn.bind(on_press=self.process_water_calculation)
-        close_btn = Button(text="Close", background_color=(0.8, 0.2, 0.2, 1), font_size=dp(16))
+        close_btn = Button(text="Close", background_color=(0.8, 0.2, 0.2, 1), font_size=16)
         
         action_layout.add_widget(calc_btn)
         action_layout.add_widget(close_btn)
         popup_layout.add_widget(action_layout)
         
-        self.water_popup = Popup(title="02. Water Temp Calculator", content=popup_layout, size_hint=(0.95, 0.9), auto_dismiss=False)
+        self.water_popup = Popup(title="02. Water Temp. Calculator Engine", content=popup_layout, size_hint=(0.95, 0.85), auto_dismiss=False)
         close_btn.bind(on_press=self.water_popup.dismiss)
         self.water_popup.open()
-
-    def fetch_ff_data(self, instance):
-        global last_calculated_ff
-        self.input_ff_water.text = str(round(last_calculated_ff, 2))
 
     def process_water_calculation(self, instance):
         global last_calculated_wt
@@ -209,15 +226,13 @@ class DashboardScreen(Screen):
             ddt_val = float(self.w_inputs["01. DDT:"].text) if self.w_inputs["01. DDT:"].text else 0.0
             rt_val = float(self.w_inputs["02. RT:"].text) if self.w_inputs["02. RT:"].text else 0.0
             ft_val = float(self.w_inputs["03. FT:"].text) if self.w_inputs["03. FT:"].text else 0.0
-            ff_val = float(self.input_ff_water.text) if self.input_ff_water.text else 0.0
+            ff_val = float(self.input_w_ff.text) if self.input_w_ff.text else 0.0
             
-            cal_wt_result = (3 * ddt_val) - rt_val - ft_val - ff_val
-                
-            last_calculated_wt = cal_wt_result
-            self.input_cal_wt.text = str(round(cal_wt_result, 2))
+            wt_result = (3 * ddt_val) - rt_val - ft_val - ff_val
+            last_calculated_wt = wt_result
+            self.input_w_wt.text = str(round(wt_result, 2))
         except ValueError:
-            self.input_cal_wt.text = "Error"
-
+            self.input_w_wt.text = "Error"
 
     # --- POPUP DESIGN FOR BOX 03: ICE TEMP CALCULATOR ---
     def open_ice_temp_popup(self, instance):
@@ -225,233 +240,148 @@ class DashboardScreen(Screen):
         
         row1 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
         lbl1 = Label(text="01. Req Water Wt:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle')
-        lbl1.bind(size=lbl1.setter('text_size')) 
+        lbl1.bind(size=lbl1.setter('text_size'))
         self.input_req_water = TextInput(hint_text="Enter Weight", multiline=False, input_filter='float', size_hint_x=0.55, font_size=dp(15))
         row1.add_widget(lbl1)
         row1.add_widget(self.input_req_water)
         popup_layout.add_widget(row1)
-        
+
         row2 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
         lbl2 = Label(text="02. WT:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle')
         lbl2.bind(size=lbl2.setter('text_size'))
-        self.input_ice_wt = TextInput(hint_text="Enter WT", multiline=False, input_filter='float', size_hint_x=0.55, font_size=dp(15))
+        self.input_ice_wt = TextInput(text=str(last_calculated_wt), multiline=False, input_filter='float', size_hint_x=0.55, font_size=dp(15))
         row2.add_widget(lbl2)
         row2.add_widget(self.input_ice_wt)
         popup_layout.add_widget(row2)
-        
+
         row3 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
-        lbl3 = Label(text="03. Cal WT:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle')
+        lbl3 = Label(text="03. Source Ice Temp:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle')
         lbl3.bind(size=lbl3.setter('text_size'))
-        self.input_ice_cal_wt = TextInput(hint_text="Value", multiline=False, input_filter='float', size_hint_x=0.35, font_size=dp(15))
-        get_wt_btn = Button(text="Get", size_hint_x=0.2, font_size=dp(14), background_color=(0, 0.7, 1, 1))
-        get_wt_btn.bind(on_press=self.fetch_wt_data)
+        self.input_src_ice_temp = TextInput(text="-12", multiline=False, input_filter='float', size_hint_x=0.55, font_size=dp(15))
         row3.add_widget(lbl3)
-        row3.add_widget(self.input_ice_cal_wt)
-        row3.add_widget(get_wt_btn)
+        row3.add_widget(self.input_src_ice_temp)
         popup_layout.add_widget(row3)
-        
+
         row4 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
-        lbl4 = Label(text="04. Calc Ice Wt:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle')
+        lbl4 = Label(text="04. Source H2O Temp:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle')
         lbl4.bind(size=lbl4.setter('text_size'))
-        self.output_calc_ice = TextInput(hint_text="Result", multiline=False, readonly=True, size_hint_x=0.55, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
+        self.input_src_h2o_temp = TextInput(text="22", multiline=False, input_filter='float', size_hint_x=0.55, font_size=dp(15))
         row4.add_widget(lbl4)
-        row4.add_widget(self.output_calc_ice)
+        row4.add_widget(self.input_src_h2o_temp)
         popup_layout.add_widget(row4)
-        
+
         row5 = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
-        lbl5 = Label(text="05. Calc Water Wt:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle')
+        lbl5 = Label(text="05. Target Ice Wt:", size_hint_x=0.45, font_size=dp(15), halign='left', valign='middle')
         lbl5.bind(size=lbl5.setter('text_size'))
-        self.output_calc_water = TextInput(hint_text="Result", multiline=False, readonly=True, size_hint_x=0.55, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
+        self.ice_sub_result = TextInput(hint_text="Ice Result", multiline=False, readonly=True, size_hint_x=0.25, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
+        self.water_sub_result = TextInput(hint_text="Water Result", multiline=False, readonly=True, size_hint_x=0.30, font_size=dp(15), background_color=(0.9, 0.9, 0.9, 1))
         row5.add_widget(lbl5)
-        row5.add_widget(self.output_calc_water)
+        row5.add_widget(self.ice_sub_result)
+        row5.add_widget(self.water_sub_result)
         popup_layout.add_widget(row5)
-        
-        popup_layout.add_widget(Label()) 
+
+        popup_layout.add_widget(Label())
 
         action_layout = BoxLayout(orientation='horizontal', spacing=dp(15), size_hint_y=None, height=dp(50))
-        calc_btn = Button(text="Calculate", background_color=(0.2, 0.5, 0.7, 1), font_size=dp(16))
+        calc_btn = Button(text="Calculate", background_color=(0.2, 0.8, 0.2, 1), font_size=dp(16))
         calc_btn.bind(on_press=self.process_ice_calculation)
-        close_btn = Button(text="Close", background_color=(0.8, 0.2, 0.2, 1), font_size=dp(16))
+        close_btn = Button(text="Close", background_color=(0.8, 0.2, 0.2, 1), font_size=16)
         
         action_layout.add_widget(calc_btn)
         action_layout.add_widget(close_btn)
         popup_layout.add_widget(action_layout)
         
-        self.ice_popup = Popup(title="03. Ice Temp Calculator Engine", content=popup_layout, size_hint=(0.95, 0.85), auto_dismiss=False)
+        self.ice_popup = Popup(title="03. Ice Substitution Engine", content=popup_layout, size_hint=(0.95, 0.85), auto_dismiss=False)
         close_btn.bind(on_press=self.ice_popup.dismiss)
         self.ice_popup.open()
 
-    def fetch_wt_data(self, instance):
-        global last_calculated_wt
-        self.input_ice_cal_wt.text = str(round(last_calculated_wt, 2))
-
     def process_ice_calculation(self, instance):
         try:
-            req_water = float(self.input_req_water.text) if self.input_req_water.text else 0.0
+            req_wat = float(self.input_req_water.text) if self.input_req_water.text else 0.0
             wt_val = float(self.input_ice_wt.text) if self.input_ice_wt.text else 0.0
-            cal_wt = float(self.input_ice_cal_wt.text) if self.input_ice_cal_wt.text else 0.0
+            src_ice = float(self.input_src_ice_temp.text) if self.input_src_ice_temp.text else 0.0
+            src_h2o = float(self.input_src_h2o_temp.text) if self.input_src_h2o_temp.text else 0.0
             
-            if (wt_val + 80) == 0:
-                self.output_calc_ice.text = "Error: Div by 0"
-                self.output_calc_water.text = "Error"
+            numerator = req_wat * (src_h2o - wt_val)
+            denominator = 80 + src_h2o - (0.5 * src_ice)
+            
+            if denominator == 0:
+                self.ice_sub_result.text = "Error"
+                self.water_sub_result.text = "Error"
                 return
 
-            ice_weight = req_water * (wt_val - cal_wt) / (wt_val + 80)
-            water_weight = req_water - ice_weight
+            ice_weight = numerator / denominator
+            if ice_weight < 0:
+                ice_weight = 0.0
+            if ice_weight > req_wat:
+                ice_weight = req_wat
+                
+            water_weight = req_wat - ice_weight
             
-            self.output_calc_ice.text = str(round(ice_weight, 2))
-            self.output_calc_water.text = str(round(water_weight, 2))
+            self.ice_sub_result.text = str(round(ice_weight, 2)) + "g (Ice)"
+            self.water_sub_result.text = str(round(water_weight, 2)) + "g (Water)"
         except ValueError:
-            self.output_calc_ice.text = "Error"
-            self.output_calc_water.text = "Error"
+            self.ice_sub_result.text = "Error"
+            self.water_sub_result.text = "Error"
 
-
-    # --- POPUP DESIGN FOR BOX 04: RECIPE CALCULATOR ---
+    # --- POPUP DESIGN FOR BOX 04: PROFESSIONAL RECIPE CALCULATOR MATRIX ENGINE ---
     def open_recipe_popup(self, instance):
         base_layout = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
         
-        # New unified Top Control Bar (Title Left, Checkbox Right)
-        ctrl_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(35), spacing=dp(5))
-        
-        self.recipe_title_label = Label(
-            text="Active Recipe: New Formulation", 
-            font_size=dp(15), 
-            bold=True, 
-            color=(1, 0.8, 0.2, 1), 
-            size_hint_x=0.65, 
-            halign='left', 
-            valign='middle'
-        )
+        ctrl_bar = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(8))
+        self.recipe_title_label = Label(text="Active Recipe: Unsaved System Instance", font_size=dp(14), bold=True, halign='left', size_hint_x=0.6)
         self.recipe_title_label.bind(size=self.recipe_title_label.setter('text_size'))
         ctrl_bar.add_widget(self.recipe_title_label)
         
-        # Explicit label naming changed to "Auto cal."
-        autocal_lbl = Label(text="Auto cal.", font_size=dp(13), size_hint_x=0.25, halign='right', valign='middle')
-        autocal_lbl.bind(size=autocal_lbl.setter('text_size'))
-        ctrl_bar.add_widget(autocal_lbl)
-        
-        self.realtime_checkbox = CheckBox(size_hint_x=0.1, active=False) # Disabled on startup
+        ctrl_bar.add_widget(Label(text="Live Realtime Sync:", font_size=dp(12), size_hint_x=0.3, halign='right'))
+        self.realtime_checkbox = CheckBox(size_hint_x=0.1, active=False)
         self.realtime_checkbox.bind(active=self.on_checkbox_toggle)
         ctrl_bar.add_widget(self.realtime_checkbox)
-        
         base_layout.add_widget(ctrl_bar)
         
         scroll_window = ScrollView(size_hint=(1, 0.8))
         self.form_layout = BoxLayout(orientation='vertical', spacing=dp(12), size_hint_y=None)
         self.form_layout.bind(minimum_height=self.form_layout.setter('height'))
         
-        # --- Top Totals Bar ---
         totals_grid = GridLayout(cols=6, size_hint_y=None, height=dp(40), spacing=dp(5))
         totals_grid.add_widget(Label(text="Total Wt:", font_size=dp(13), bold=True))
-        
         self.recipe_total_weight = TextInput(hint_text="0.00", multiline=False, input_filter='float', font_size=dp(13))
         self.recipe_total_weight.bind(text=self.on_manual_field_change)
         totals_grid.add_widget(self.recipe_total_weight)
         
         totals_grid.add_widget(Label(text="Total Flour:", font_size=dp(13), bold=True))
-        self.recipe_total_flour = TextInput(hint_text="0.00", readonly=True, multiline=False, font_size=dp(13), background_color=(0.9, 0.9, 0.9, 1))
+        self.recipe_total_flour = TextInput(hint_text="0.00", multiline=False, readonly=True, font_size=dp(13), background_color=(0.9, 0.9, 0.9, 1))
         totals_grid.add_widget(self.recipe_total_flour)
         
         totals_grid.add_widget(Label(text="Total Water:", font_size=dp(13), bold=True))
-        self.recipe_total_water = TextInput(hint_text="0.00", readonly=True, multiline=False, font_size=dp(13), background_color=(0.9, 0.9, 0.9, 1))
+        self.recipe_total_water = TextInput(hint_text="0.00", multiline=False, readonly=True, font_size=dp(13), background_color=(0.9, 0.9, 0.9, 1))
         totals_grid.add_widget(self.recipe_total_water)
         self.form_layout.add_widget(totals_grid)
         
-        def create_header_row(title_text):
-            header = GridLayout(cols=4, size_hint_y=None, height=dp(30), spacing=dp(5))
-            lbl_main = Label(text=title_text, bold=True, font_size=dp(16), color=(0, 0.7, 1, 1), halign='left', valign='middle', size_hint_x=0.4)
-            lbl_main.bind(size=lbl_main.setter('text_size'))
-            header.add_widget(lbl_main)
-            header.add_widget(Label(text="Bakers %", bold=True, font_size=dp(12), size_hint_x=0.2))
-            header.add_widget(Label(text="True %", bold=True, font_size=dp(12), size_hint_x=0.2))
-            header.add_widget(Label(text="Weight", bold=True, font_size=dp(12), size_hint_x=0.2))
-            return header
-
-        # --- SECTION A: SPONGE SYSTEM ---
-        self.form_layout.add_widget(create_header_row("Sponge Section"))
-        
-        sponge_ingredients = ["Flour", "Water", "Yeast"]
         self.sponge_inputs = {}
-        for ing in sponge_ingredients:
-            row = GridLayout(cols=4, size_hint_y=None, height=dp(36), spacing=dp(5))
-            lbl = Label(text=ing, font_size=dp(14), halign='left', valign='middle', size_hint_x=0.4)
-            lbl.bind(size=lbl.setter('text_size'))
-            row.add_widget(lbl)
-            
-            b_pct = TextInput(hint_text="0.00", multiline=False, input_filter='float', size_hint_x=0.2, font_size=dp(13))
-            t_pct = TextInput(hint_text="0.00", multiline=False, input_filter='float', size_hint_x=0.2, font_size=dp(13))
-            wt_val = TextInput(hint_text="0.00", multiline=False, input_filter='float', size_hint_x=0.2, font_size=dp(13))
-            
-            b_pct.bind(text=self.on_manual_field_change)
-            t_pct.bind(text=self.on_manual_field_change)
-            wt_val.bind(text=self.on_manual_field_change)
-            
-            self.sponge_inputs[ing] = {"bakers": b_pct, "true": t_pct, "weight": wt_val}
-            row.add_widget(b_pct)
-            row.add_widget(t_pct)
-            row.add_widget(wt_val)
-            self.form_layout.add_widget(row)
-            
-        self.btn_add_sponge = Button(text="+ Add Ingredient (Sponge)", font_size=dp(13), size_hint_y=None, height=dp(32), background_color=(0.2, 0.6, 0.4, 1))
-        self.btn_add_sponge.bind(on_press=lambda inst: self.show_add_ingredient_dialog("sponge"))
-        self.form_layout.add_widget(self.btn_add_sponge)
-        
-        # --- SECTION B: DOUGH SYSTEM ---
-        self.form_layout.add_widget(create_header_row("Dough Section"))
-        
-        dough_ingredients = ["Flour", "Water", "Sugar", "Shortening", "MSNF"]
         self.dough_inputs = {}
-        for ing in dough_ingredients:
-            row = GridLayout(cols=4, size_hint_y=None, height=dp(36), spacing=dp(5))
-            lbl = Label(text=ing, font_size=dp(14), halign='left', valign='middle', size_hint_x=0.4)
-            lbl.bind(size=lbl.setter('text_size'))
-            row.add_widget(lbl)
-            
-            b_pct = TextInput(hint_text="0.00", multiline=False, input_filter='float', size_hint_x=0.2, font_size=dp(13))
-            t_pct = TextInput(hint_text="0.00", multiline=False, input_filter='float', size_hint_x=0.2, font_size=dp(13))
-            wt_val = TextInput(hint_text="0.00", multiline=False, input_filter='float', size_hint_x=0.2, font_size=dp(13))
-            
-            b_pct.bind(text=self.on_manual_field_change)
-            t_pct.bind(text=self.on_manual_field_change)
-            wt_val.bind(text=self.on_manual_field_change)
-            
-            self.dough_inputs[ing] = {"bakers": b_pct, "true": t_pct, "weight": wt_val}
-            row.add_widget(b_pct)
-            row.add_widget(t_pct)
-            row.add_widget(wt_val)
-            self.form_layout.add_widget(row)
-            
-        self.btn_add_dough = Button(text="+ Add Ingredient (Dough)", font_size=dp(13), size_hint_y=None, height=dp(32), background_color=(0.2, 0.6, 0.4, 1))
-        self.btn_add_dough.bind(on_press=lambda inst: self.show_add_ingredient_dialog("dough"))
-        self.form_layout.add_widget(self.btn_add_dough)
         
-        # --- Total Formulation Summary Bar ---
-        total_summary_row = GridLayout(cols=4, size_hint_y=None, height=dp(38), spacing=dp(5))
-        lbl_sum = Label(text="Total", bold=True, font_size=dp(14), halign='left', valign='middle', size_hint_x=0.4)
-        lbl_sum.bind(size=lbl_sum.setter('text_size'))
-        total_summary_row.add_widget(lbl_sum)
+        self.build_section_block("A. SPONGE SECTION (PRE-FERMENT)", ["Flour", "Water", "Yeast"], self.sponge_inputs)
+        self.build_section_block("B. FINAL DOUGH INGREDIENTS MATRIX", ["Flour", "Water", "Salt", "Yeast", "Sugar", "Butter"], self.dough_inputs)
         
-        self.total_bakers_summary = TextInput(text="0.00", readonly=True, multiline=False, size_hint_x=0.2, font_size=dp(13), background_color=(0.85, 0.92, 0.98, 1))
-        self.total_true_summary = TextInput(text="0.00", readonly=True, multiline=False, size_hint_x=0.2, font_size=dp(13), background_color=(0.85, 0.92, 0.98, 1))
-        self.total_weight_summary = TextInput(text="0.00", readonly=True, multiline=False, size_hint_x=0.2, font_size=dp(13), background_color=(0.85, 0.92, 0.98, 1))
-        
-        total_summary_row.add_widget(self.total_bakers_summary)
-        total_summary_row.add_widget(self.total_true_summary)
-        total_summary_row.add_widget(self.total_weight_summary)
-        self.form_layout.add_widget(total_summary_row)
+        summary_grid = GridLayout(cols=4, size_hint_y=None, height=dp(40), spacing=dp(5))
+        summary_grid.add_widget(Label(text="Matrix Totals Summary:", font_size=dp(12), bold=True))
+        self.total_bakers_summary = TextInput(hint_text="0.0%", readonly=True, font_size=dp(12), background_color=(0.9, 0.9, 0.9, 1))
+        self.total_true_summary = TextInput(hint_text="0.0%", readonly=True, font_size=dp(12), background_color=(0.9, 0.9, 0.9, 1))
+        self.total_weight_summary = TextInput(hint_text="0.00", readonly=True, font_size=dp(12), background_color=(0.9, 0.9, 0.9, 1))
+        summary_grid.add_widget(self.total_bakers_summary)
+        summary_grid.add_widget(self.total_true_summary)
+        summary_grid.add_widget(self.total_weight_summary)
+        self.form_layout.add_widget(summary_grid)
         
         scroll_window.add_widget(self.form_layout)
         base_layout.add_widget(scroll_window)
         
-        # --- Action Control Bar ---
         action_layout = BoxLayout(orientation='horizontal', spacing=dp(10), size_hint_y=None, height=dp(48))
-        
         save_btn = Button(text="Save Recipe", background_color=(0.15, 0.65, 0.35, 1), font_size=dp(14), bold=True)
         save_btn.bind(on_press=self.trigger_save_workflow)
-        
         load_btn = Button(text="Load Recipe", background_color=(0.15, 0.45, 0.65, 1), font_size=dp(14), bold=True)
         load_btn.bind(on_press=self.trigger_load_list_popup)
-        
         close_btn = Button(text="Close", background_color=(0.8, 0.2, 0.2, 1), font_size=dp(14))
         
         action_layout.add_widget(save_btn)
@@ -459,328 +389,229 @@ class DashboardScreen(Screen):
         action_layout.add_widget(close_btn)
         base_layout.add_widget(action_layout)
         
-        self.recipe_popup = Popup(title="04. Professional Baker Bakers % / True % Engine", content=base_layout, size_hint=(0.98, 0.95), auto_dismiss=False)
+        self.recipe_popup = Popup(title="04. Professional Multi-Section Recipe Formulation Engine Matrix", content=base_layout, size_hint=(0.98, 0.98), auto_dismiss=False)
         close_btn.bind(on_press=self.recipe_popup.dismiss)
         self.recipe_popup.open()
 
+    def build_section_block(self, title, ingredient_list, target_dict):
+        self.form_layout.add_widget(Label(text=title, font_size=dp(14), bold=True, size_hint_y=None, height=dp(25), color=(0, 0.7, 1, 1), halign='left'))
+        
+        header = GridLayout(cols=4, size_hint_y=None, height=dp(30), spacing=dp(5))
+        header.add_widget(Label(text="Ingredient Item", font_size=dp(12), bold=True))
+        header.add_widget(Label(text="Baker's %", font_size=dp(12), bold=True))
+        header.add_widget(Label(text="True %", font_size=dp(12), bold=True))
+        header.add_widget(Label(text="Weight (g)", font_size=dp(12), bold=True))
+        self.form_layout.add_widget(header)
+        
+        for name in ingredient_list:
+            row = GridLayout(cols=4, size_hint_y=None, height=dp(38), spacing=dp(5))
+            row.add_widget(Label(text=name, font_size=dp(13)))
+            
+            bakers_in = TextInput(hint_text="0.0", multiline=False, input_filter='float', font_size=dp(13))
+            true_in = TextInput(hint_text="0.0", multiline=False, input_filter='float', font_size=dp(13))
+            weight_in = TextInput(hint_text="0.0", multiline=False, input_filter='float', font_size=dp(13))
+            
+            bakers_in.bind(text=self.on_manual_field_change)
+            true_in.bind(text=self.on_manual_field_change)
+            weight_in.bind(text=self.on_manual_field_change)
+            
+            target_dict[name] = {"bakers": bakers_in, "true": true_in, "weight": weight_in}
+            
+            row.add_widget(bakers_in)
+            row.add_widget(true_in)
+            row.add_widget(weight_in)
+            self.form_layout.add_widget(row)
+
     def on_checkbox_toggle(self, checkbox, value):
         if value:
-            # Real-time calculation activated -> immediately execute calculations
             self.calculate_recipe_matrix()
 
-    # --- REAL-TIME CALCULATION DISPATCHER ---
-    def on_manual_field_change(self, instance, value):
+    def on_manual_field_change(self, instance, text):
+        if self.realtime_checkbox.active:
+            self.calculate_recipe_matrix()
+
+    def calculate_recipe_matrix(self):
         if self._calculating:
             return
-        
-        # Run calculation cycle instantly if Auto cal. checkbox is ticked
-        if not self.realtime_checkbox.active:
-            return
-        
-        context_section = None
-        context_ingredient = None
-        context_field_type = None
-        
-        if instance == self.recipe_total_weight:
-            context_field_type = "total_weight"
-        else:
-            for s_name, inputs in [("Sponge", self.sponge_inputs), ("Dough", self.dough_inputs)]:
-                for ing, fields in inputs.items():
-                    for f_key, f_inst in fields.items():
-                        if f_inst == instance:
-                            context_section = s_name
-                            context_ingredient = ing
-                            context_field_type = f_key
-                            break
-
-        self.calculate_recipe_matrix(trigger_field=context_field_type, trigger_ing=context_ingredient, trigger_sec=context_section)
-
-    # --- MAIN CALCULATION & VALIDATION ENGINE ---
-    def calculate_recipe_matrix(self, trigger_field=None, trigger_ing=None, trigger_sec=None):
-        if self._calculating:
-            return
-        
         self._calculating = True
-        
         try:
-            # 1. Parse Top level editable weight
-            try: total_dough_weight = float(self.recipe_total_weight.text or 0.0)
-            except ValueError: total_dough_weight = 0.0
-
-            # 2. Extract active status metrics
-            sponge_has_data = any(f["bakers"].text or f["true"].text or f["weight"].text for f in self.sponge_inputs.values())
-            dough_has_data = any(f["bakers"].text or f["true"].text or f["weight"].text for f in self.dough_inputs.values())
-
-            # 3. Dynamic Back-Calculation Logic from manual weight entries
-            if trigger_field == "weight" and total_dough_weight > 0:
-                target_inputs = self.sponge_inputs if trigger_sec == "Sponge" else self.dough_inputs
-                try:
-                    m_weight = float(target_inputs[trigger_ing]["weight"].text or 0.0)
-                    calculated_true = (m_weight / total_dough_weight) * 100
-                    target_inputs[trigger_ing]["true"].text = str(round(calculated_true, 2))
-                    trigger_field = "true" 
-                except ValueError: pass
-
-            # 4. Handle Flour Rule Balancing Constraints
+            total_flour_bakers_sum = 0.0
             sf_bakers = float(self.sponge_inputs["Flour"]["bakers"].text or 0.0) if "Flour" in self.sponge_inputs else 0.0
             df_bakers = float(self.dough_inputs["Flour"]["bakers"].text or 0.0) if "Flour" in self.dough_inputs else 0.0
-
-            if not sponge_has_data and dough_has_data and "Flour" in self.dough_inputs:
-                if trigger_field != "bakers" or trigger_ing != "Flour" or trigger_sec != "Dough":
-                    self.dough_inputs["Flour"]["bakers"].text = "100.00"
-                    df_bakers = 100.0
-
-            # 5. Calculate Baker Total Percentages Base Summation
+            total_flour_bakers_sum = sf_bakers + df_bakers
+            
+            if total_flour_bakers_sum == 0:
+                total_flour_bakers_sum = 100.0
+                
             total_bakers_sum = 0.0
+            sponge_has_data = False
+            dough_has_data = False
+            
             for name, fields in self.sponge_inputs.items():
-                if name != "Water": # Skip water inside sponge configuration sum criteria
-                    try: total_bakers_sum += float(fields["bakers"].text or 0.0)
-                    except ValueError: pass
+                try:
+                    bp = float(fields["bakers"].text or 0.0)
+                    wt = float(fields["weight"].text or 0.0)
+                    tp = float(fields["true"].text or 0.0)
+                    if bp > 0 or wt > 0 or tp > 0:
+                        sponge_has_data = True
+                except ValueError: pass
+                
+            for name, fields in self.dough_inputs.items():
+                try:
+                    bp = float(fields["bakers"].text or 0.0)
+                    wt = float(fields["weight"].text or 0.0)
+                    tp = float(fields["true"].text or 0.0)
+                    if bp > 0 or wt > 0 or tp > 0:
+                        dough_has_data = True
+                except ValueError: pass
+
+            for name, fields in self.sponge_inputs.items():
+                try: total_bakers_sum += float(fields["bakers"].text or 0.0)
+                except ValueError: pass
             for name, fields in self.dough_inputs.items():
                 try: total_bakers_sum += float(fields["bakers"].text or 0.0)
                 except ValueError: pass
-
+                
             if total_bakers_sum == 0:
-                total_bakers_sum = 100.0 
+                total_bakers_sum = 100.0
 
-            # 6. Compute True Percentages and Weights Columns
             running_true_sum = 0.0
             running_flour_weight = 0.0
             running_water_weight = 0.0
-            total_accumulated_weight_all_ingredients = 0.0  
+            total_accumulated_weight_all_ingredients = 0.0
 
-            # Process Sponge elements
             for name, fields in self.sponge_inputs.items():
                 try: b_val = float(fields["bakers"].text or 0.0)
                 except ValueError: b_val = 0.0
-
+                
                 if name == "Water":
                     flour_bakers = float(self.sponge_inputs["Flour"]["bakers"].text or 0.0) if "Flour" in self.sponge_inputs else 0.0
                     t_val = (b_val * flour_bakers) / total_bakers_sum
                 else:
                     t_val = (b_val * 100.0) / total_bakers_sum
-
-                if trigger_field != "true" or trigger_ing != name or trigger_sec != "Sponge":
-                    fields["true"].text = str(round(t_val, 2)) if t_val > 0 else ""
-                else:
-                    try: t_val = float(fields["true"].text or 0.0)
-                    except ValueError: t_val = 0.0
-
-                if trigger_field == "total_weight" or trigger_field == "bakers" or trigger_field == "true" or trigger_field is None:
-                    if total_dough_weight > 0:
-                        w_val = (total_dough_weight * t_val) / 100.0
-                        fields["weight"].text = str(round(w_val, 2)) if w_val > 0 else ""
-                
-                try: current_w = float(fields["weight"].text or 0.0)
-                except ValueError: current_w = 0.0
-
-                if name.lower() == "flour": running_flour_weight += current_w
-                elif name.lower() == "water": running_water_weight += current_w
-
+                    
                 running_true_sum += t_val
-                total_accumulated_weight_all_ingredients += current_w
+                if fields["true"].focus is False:
+                    fields["true"].text = str(round(t_val, 2)) if t_val > 0 else ""
+                    
+                try: macro_wt = float(self.recipe_total_weight.text or 0.0)
+                except ValueError: macro_wt = 0.0
+                
+                w_val = (t_val / 100.0) * macro_wt
+                total_accumulated_weight_all_ingredients += w_val
+                if fields["weight"].focus is False:
+                    fields["weight"].text = str(round(w_val, 2)) if w_val > 0 else ""
+                    
+                if name == "Flour": running_flour_weight += w_val
+                if name == "Water": running_water_weight += w_val
 
-            # Process Dough elements
             for name, fields in self.dough_inputs.items():
                 try: b_val = float(fields["bakers"].text or 0.0)
                 except ValueError: b_val = 0.0
-
-                t_val = (b_val * 100.0) / total_bakers_sum
-
-                if trigger_field != "true" or trigger_ing != name or trigger_sec != "Dough":
-                    fields["true"].text = str(round(t_val, 2)) if t_val > 0 else ""
-                else:
-                    try: t_val = float(fields["true"].text or 0.0)
-                    except ValueError: t_val = 0.0
-
-                if trigger_field == "total_weight" or trigger_field == "bakers" or trigger_field == "true" or trigger_field is None:
-                    if total_dough_weight > 0:
-                        w_val = (total_dough_weight * t_val) / 100.0
-                        fields["weight"].text = str(round(w_val, 2)) if w_val > 0 else ""
                 
-                try: current_w = float(fields["weight"].text or 0.0)
-                except ValueError: current_w = 0.0
-
-                if name.lower() == "flour": running_flour_weight += current_w
-                elif name.lower() == "water": running_water_weight += current_w
-
+                t_val = (b_val * 100.0) / total_bakers_sum
                 running_true_sum += t_val
-                total_accumulated_weight_all_ingredients += current_w
+                if fields["true"].focus is False:
+                    fields["true"].text = str(round(t_val, 2)) if t_val > 0 else ""
+                    
+                try: macro_wt = float(self.recipe_total_weight.text or 0.0)
+                except ValueError: macro_wt = 0.0
+                
+                w_val = (t_val / 100.0) * macro_wt
+                total_accumulated_weight_all_ingredients += w_val
+                if fields["weight"].focus is False:
+                    fields["weight"].text = str(round(w_val, 2)) if w_val > 0 else ""
+                    
+                if name == "Flour": running_flour_weight += w_val
+                if name == "Water": running_water_weight += w_val
 
-            # 7. Update Metrics Display fields
-            self.recipe_total_flour.text = str(round(running_flour_weight, 2)) if running_flour_weight > 0 else "0.00"
-            self.recipe_total_water.text = str(round(running_water_weight, 2)) if running_water_weight > 0 else "0.00"
+            self.recipe_total_flour.text = str(round(running_flour_weight, 2))
+            self.recipe_total_water.text = str(round(running_water_weight, 2))
             
-            if trigger_field != "total_weight" and total_accumulated_weight_all_ingredients > 0 and total_dough_weight == 0:
+            if len(self.recipe_total_weight.text) == 0:
                 self.recipe_total_weight.text = str(round(total_accumulated_weight_all_ingredients, 2))
-
+                
             self.total_bakers_summary.text = str(round(total_bakers_sum, 2))
             self.total_true_summary.text = str(round(running_true_sum, 2))
             self.total_weight_summary.text = str(round(total_accumulated_weight_all_ingredients, 2))
-
-            # 8. Contrast-Safe Validation Highlights Engine
-            error_bg = [0.6, 0.1, 0.1, 1]  
-            normal_bg = [1, 1, 1, 1]
-
+            
+            error_bg = [0.6, 0.1, 0.1, 1]
             if running_true_sum > 0 and not (99.0 <= round(running_true_sum, 2) <= 100.01):
                 self.total_true_summary.background_color = error_bg
                 self.total_true_summary.color = [1, 1, 1, 1]
             else:
                 self.total_true_summary.background_color = [0.85, 0.92, 0.98, 1]
                 self.total_true_summary.color = [0, 0, 0, 1]
-
-            if sponge_has_data and dough_has_data:
-                combined_flour_bakers = sf_bakers + df_bakers
-                if round(combined_flour_bakers, 2) != 100.0:
-                    if "Flour" in self.sponge_inputs: self.sponge_inputs["Flour"]["bakers"].background_color = error_bg
-                    if "Flour" in self.dough_inputs: self.dough_inputs["Flour"]["bakers"].background_color = error_bg
-                else:
-                    if "Flour" in self.sponge_inputs: self.sponge_inputs["Flour"]["bakers"].background_color = normal_bg
-                    if "Flour" in self.dough_inputs: self.dough_inputs["Flour"]["bakers"].background_color = normal_bg
-            else:
-                if "Flour" in self.sponge_inputs: self.sponge_inputs["Flour"]["bakers"].background_color = normal_bg
-                if "Flour" in self.dough_inputs: self.dough_inputs["Flour"]["bakers"].background_color = normal_bg
-
         finally:
             self._calculating = False
 
-    # --- DYNAMIC INGREDIENT PROMPT SYSTEM ---
-    def show_add_ingredient_dialog(self, section_type):
-        dialog_layout = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(10))
-        dialog_layout.add_widget(Label(text="Enter New Ingredient Name:", font_size=dp(15), bold=True))
-        ing_name_input = TextInput(hint_text="e.g. Salt, Milk, etc.", multiline=False, font_size=dp(14))
-        dialog_layout.add_widget(ing_name_input)
-        
-        btn_layout = BoxLayout(orientation='horizontal', spacing=dp(10), size_hint_y=None, height=dp(40))
-        add_btn = Button(text="Add", background_color=(0.2, 0.7, 0.2, 1))
-        close_btn = Button(text="Cancel", background_color=(0.8, 0.2, 0.2, 1))
-        
-        btn_layout.add_widget(add_btn)
-        btn_layout.add_widget(close_btn)
-        dialog_layout.add_widget(btn_layout)
-        
-        prompt_popup = Popup(title=f"Add to {section_type.title()}", content=dialog_layout, size_hint=(0.85, 0.35))
-        
-        def execute_addition(instance):
-            name = ing_name_input.text.strip()
-            if name:
-                self.inject_new_ingredient_row(name, section_type)
-                prompt_popup.dismiss()
-                
-        add_btn.bind(on_press=execute_addition)
-        close_btn.bind(on_press=prompt_popup.dismiss)
-        prompt_popup.open()
-
-    def inject_new_ingredient_row(self, name, section_type):
-        new_row = GridLayout(cols=4, size_hint_y=None, height=dp(36), spacing=dp(5))
-        lbl = Label(text=name, font_size=dp(14), halign='left', valign='middle', size_hint_x=0.4)
-        lbl.bind(size=lbl.setter('text_size'))
-        new_row.add_widget(lbl)
-        
-        b_pct = TextInput(hint_text="0.00", multiline=False, input_filter='float', size_hint_x=0.2, font_size=dp(13))
-        t_pct = TextInput(hint_text="0.00", multiline=False, input_filter='float', size_hint_x=0.2, font_size=dp(13))
-        wt_val = TextInput(hint_text="0.00", multiline=False, input_filter='float', size_hint_x=0.2, font_size=dp(13))
-        
-        b_pct.bind(text=self.on_manual_field_change)
-        t_pct.bind(text=self.on_manual_field_change)
-        wt_val.bind(text=self.on_manual_field_change)
-        
-        new_row.add_widget(b_pct)
-        new_row.add_widget(t_pct)
-        new_row.add_widget(wt_val)
-        
-        if section_type == "sponge":
-            self.sponge_inputs[name] = {"bakers": b_pct, "true": t_pct, "weight": wt_val}
-            target_index = self.form_layout.children.index(self.btn_add_sponge)
-            self.form_layout.add_widget(new_row, index=target_index + 1)
-        else:
-            self.dough_inputs[name] = {"bakers": b_pct, "true": t_pct, "weight": wt_val}
-            target_index = self.form_layout.children.index(self.btn_add_dough)
-            self.form_layout.add_widget(new_row, index=target_index + 1)
-
-    # --- SAVE RECIPE WORKFLOW ENGINE ---
+    # --- SAVE PROFILE WORKFLOW ENGINE ---
     def trigger_save_workflow(self, instance):
-        filled_count = 0
         valid_rows = []
-
-        for name, fields in self.sponge_inputs.items():
-            bp = fields["bakers"].text.strip()
-            tp = fields["true"].text.strip()
-            wt = fields["weight"].text.strip()
-            if bp or tp or wt:
-                filled_count += 1
-                valid_rows.append(("Sponge", name, bp or "0.00", tp or "0.00", wt or "0.00"))
-
-        for name, fields in self.dough_inputs.items():
-            bp = fields["bakers"].text.strip()
-            tp = fields["true"].text.strip()
-            wt = fields["weight"].text.strip()
-            if bp or tp or wt:
-                filled_count += 1
-                valid_rows.append(("Dough", name, bp or "0.00", tp or "0.00", wt or "0.00"))
-
+        filled_count = 0
+        
+        for name, target in [("Sponge", self.sponge_inputs), ("Dough", self.dough_inputs)]:
+            for ing_name, fields in target.items():
+                bp = fields["bakers"].text
+                tp = fields["true"].text
+                wt = fields["weight"].text
+                if bp or tp or wt:
+                    filled_count += 1
+                    valid_rows.append((name, ing_name, bp or "0.00", tp or "0.00", wt or "0.00"))
+                    
         if filled_count <= 2:
             warn_box = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(15))
             warn_box.add_widget(Label(text="Not enough recipe details filled to save.", font_size=dp(14), bold=True))
             ok_btn = Button(text="OK", size_hint_y=None, height=dp(40), background_color=(0.8, 0.2, 0.2, 1))
             warn_box.add_widget(ok_btn)
-            
             warn_popup = Popup(title="Warning", content=warn_box, size_hint=(0.7, 0.25))
             ok_btn.bind(on_press=warn_popup.dismiss)
             warn_popup.open()
             return
 
         save_layout = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
-        
         table_header = GridLayout(cols=5, size_hint_y=None, height=dp(30), spacing=dp(2))
-        cols_config = [
-            ("Sec", 0.15), ("Ingredient", 0.37), ("Bakers %", 0.16), ("True %", 0.16), ("Weight", 0.16)
-        ]
-        for title, hint_x in cols_config:
-            lbl = Label(text=title, bold=True, font_size=dp(12), size_hint_x=hint_x, halign='center', valign='middle')
-            lbl.bind(size=lbl.setter('text_size'))
-            table_header.add_widget(lbl)
+        cols_config = [("Sec", 0.15), ("Item", 0.25), ("Bak%", 0.2), ("Tru%", 0.2), ("Wt(g)", 0.2)]
+        for h_text, h_sz in cols_config:
+            table_header.add_widget(Label(text=h_text, font_size=dp(11), bold=True))
         save_layout.add_widget(table_header)
-
-        scroll_view = ScrollView(size_hint=(1, 0.6))
-        grid_table = GridLayout(cols=5, spacing=dp(2), size_hint_y=None)
-        grid_table.bind(minimum_height=grid_table.setter('height'))
-
-        for sec, ing_name, b_pct, t_pct, w_val in valid_rows:
-            row_data = [(sec, 0.15), (ing_name, 0.37), (b_pct, 0.16), (t_pct, 0.16), (w_val, 0.16)]
-            for text_val, hint_x in row_data:
-                cell_lbl = Label(text=text_val, font_size=dp(12), size_hint_x=hint_x, size_hint_y=None, height=dp(28), halign='center', valign='middle')
-                cell_lbl.bind(size=cell_lbl.setter('text_size'))
-                grid_table.add_widget(cell_lbl)
-
-        scroll_view.add_widget(grid_table)
-        save_layout.add_widget(scroll_view)
-
-        input_container = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
-        input_container.add_widget(Label(text="Recipe Name:", font_size=dp(14), bold=True, size_hint_x=0.3))
-        recipe_name_field = TextInput(hint_text="Enter file identity name", multiline=False, size_hint_x=0.7, font_size=dp(14))
-        input_container.add_widget(recipe_name_field)
-        save_layout.add_widget(input_container)
-
-        btn_container = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(45), spacing=dp(10))
-        confirm_save_btn = Button(text="Save", background_color=(0.15, 0.65, 0.35, 1), font_size=dp(14), bold=True)
-        cancel_save_btn = Button(text="Cancel", background_color=(0.8, 0.2, 0.2, 1), font_size=dp(14))
         
-        btn_container.add_widget(confirm_save_btn)
-        btn_container.add_widget(cancel_save_btn)
-        save_layout.add_widget(btn_container)
-
-        save_popup = Popup(title="Review Recipe Summary Layout", content=save_layout, size_hint=(0.95, 0.75), auto_dismiss=False)
-        cancel_save_btn.bind(on_press=save_popup.dismiss)
-
-        def save_to_database(inst):
-            final_name = recipe_name_field.text.strip()
-            if not final_name:
-                recipe_name_field.hint_text = "Name required!"
+        preview_scroll = ScrollView(size_hint=(1, 0.5))
+        preview_grid = GridLayout(cols=5, size_hint_y=None, spacing=dp(2))
+        preview_grid.bind(minimum_height=preview_grid.setter('height'))
+        
+        for sec, item, b, t, w in valid_rows:
+            preview_grid.add_widget(Label(text=sec, font_size=dp(11)))
+            preview_grid.add_widget(Label(text=item, font_size=dp(11)))
+            preview_grid.add_widget(Label(text=str(b), font_size=dp(11)))
+            preview_grid.add_widget(Label(text=str(t), font_size=dp(11)))
+            preview_grid.add_widget(Label(text=str(w), font_size=dp(11)))
+        preview_scroll.add_widget(preview_grid)
+        save_layout.add_widget(preview_scroll)
+        
+        input_row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40), spacing=dp(10))
+        input_row.add_widget(Label(text="Recipe Key Name:", size_hint_x=0.35, font_size=dp(14)))
+        recipe_name_input = TextInput(hint_text="e.g., Artisan Sourdough V1", multiline=False, font_size=dp(14))
+        input_row.add_widget(recipe_name_input)
+        save_layout.add_widget(input_row)
+        
+        btn_layout = BoxLayout(orientation='horizontal', spacing=dp(10), size_hint_y=None, height=dp(45))
+        confirm_btn = Button(text="Commit Save", background_color=(0.15, 0.65, 0.35, 1), font_size=dp(14), bold=True)
+        cancel_btn = Button(text="Cancel", background_color=(0.8, 0.2, 0.2, 1), font_size=dp(14))
+        btn_layout.add_widget(confirm_btn)
+        btn_layout.add_widget(cancel_btn)
+        save_layout.add_widget(btn_layout)
+        
+        save_popup = Popup(title="Confirm Serialization Structure", content=save_layout, size_hint=(0.96, 0.9), auto_dismiss=False)
+        cancel_btn.bind(on_press=save_popup.dismiss)
+        
+        def commit_to_database_instance(btn_obj):
+            name_key = recipe_name_input.text.strip()
+            if not name_key:
+                recipe_name_input.hint_text = "REQUIRED FIELD NAME!"
                 return
-            
-            self.saved_recipes_db[final_name] = {
-                "dataset": valid_rows,
+                
+            payload = {
                 "top_totals": {
                     "weight": self.recipe_total_weight.text,
                     "flour": self.recipe_total_flour.text,
@@ -790,111 +621,148 @@ class DashboardScreen(Screen):
                     "bakers": self.total_bakers_summary.text,
                     "true": self.total_true_summary.text,
                     "weight": self.total_weight_summary.text
-                }
+                },
+                "matrix_data": valid_rows
             }
-            self.recipe_title_label.text = f"Active Recipe: {final_name}"
+            
+            self.saved_recipes_db[name_key] = payload
+            self.save_recipes_to_disk()  # Permanent Storage Write
+            self.recipe_title_label.text = f"Active Recipe: {name_key}"
             save_popup.dismiss()
-
-        confirm_save_btn.bind(on_press=save_to_database)
+            
+        confirm_btn.bind(on_press=commit_to_database_instance)
         save_popup.open()
 
-    # --- LOAD RECIPE LIST ENGINE ---
+    # --- LOAD MANAGEMENT SYSTEM (RECIPE LIST POPUP) ---
     def trigger_load_list_popup(self, instance):
-        list_layout = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(10))
+        self.load_recipes_from_disk()  # Always read fresh data from disk before displaying list
+        
+        main_box = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
         
         if not self.saved_recipes_db:
-            no_rec_lbl = Label(text="No saved records found in system storage.", font_size=dp(15), halign='center', valign='middle')
-            no_rec_lbl.bind(size=no_rec_lbl.setter('text_size'))
-            list_layout.add_widget(no_rec_lbl)
-            
-            close_lbl_btn = Button(text="Close", size_hint_y=None, height=dp(45), background_color=(0.8, 0.2, 0.2, 1))
-            list_layout.add_widget(close_lbl_btn)
-            load_list_popup = Popup(title="Database Library Index", content=list_layout, size_hint=(0.85, 0.35))
-            close_lbl_btn.bind(on_press=load_list_popup.dismiss)
-            load_list_popup.open()
+            main_box.add_widget(Label(text="No serialized recipes stored in local cache.", font_size=dp(14)))
+            close_btn = Button(text="Close", size_hint_y=None, height=dp(45), background_color=(0.8, 0.2, 0.2, 1))
+            main_box.add_widget(close_btn)
+            list_popup = Popup(title="Database Browser", content=main_box, size_hint=(0.9, 0.6))
+            close_btn.bind(on_press=list_popup.dismiss)
+            list_popup.open()
             return
 
-        title_lbl = Label(text="Select Recipe Profile:", bold=True, size_hint_y=None, height=dp(25), halign='center', valign='middle')
-        title_lbl.bind(size=title_lbl.setter('text_size'))
-        list_layout.add_widget(title_lbl)
+        scroll = ScrollView(size_hint=(1, 0.85))
+        list_grid = GridLayout(cols=1, spacing=dp(8), size_hint_y=None)
+        list_grid.bind(minimum_height=list_grid.setter('height'))
         
-        scroll_records = ScrollView()
-        records_box = BoxLayout(orientation='vertical', spacing=dp(8), size_hint_y=None)
-        records_box.bind(minimum_height=records_box.setter('height'))
-
-        load_list_popup = Popup(title="Database Library Index", content=list_layout, size_hint=(0.9, 0.85))
-
-        for item_key in self.saved_recipes_db.keys():
-            row_item_btn = Button(text=str(item_key), size_hint_y=None, height=dp(42), background_color=(0.2, 0.4, 0.6, 1))
-            row_item_btn.bind(on_press=lambda inst, key=item_key: self.open_recipe_preview(key, load_list_popup))
-            records_box.add_widget(row_item_btn)
-
-        scroll_records.add_widget(records_box)
-        list_layout.add_widget(scroll_records)
-
-        cancel_list_btn = Button(text="Cancel", size_hint_y=None, height=dp(45), background_color=(0.8, 0.2, 0.2, 1))
-        cancel_list_btn.bind(on_press=load_list_popup.dismiss)
-        list_layout.add_widget(cancel_list_btn)
+        list_popup = Popup(title="Select Recipe Profile from Local DB", content=main_box, size_hint=(0.95, 0.95))
         
-        load_list_popup.open()
+        # Build individual recipe row list items containing Load and Delete triggers
+        for key in sorted(self.saved_recipes_db.keys()):
+            row_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(45), spacing=dp(5))
+            
+            recipe_btn = Button(text=f"Profile: {key}", halign='left', valign='middle', font_size=dp(13), size_hint_x=0.75)
+            recipe_btn.bind(size=recipe_btn.setter('text_size'))
+            # Nested function layout safely preserves active row element references
+            recipe_btn.bind(on_press=lambda b, k=key: self.open_recipe_preview(k, list_popup))
+            row_layout.add_widget(recipe_btn)
+            
+            del_btn = Button(text="Delete", background_color=(0.8, 0.2, 0.2, 1), size_hint_x=0.25, font_size=dp(13))
+            del_btn.bind(on_press=lambda b, k=key: self.delete_recipe_workflow(k, list_popup))
+            row_layout.add_widget(del_btn)
+            
+            list_grid.add_widget(row_layout)
+            
+        scroll.add_widget(list_grid)
+        main_box.add_widget(scroll)
+        
+        close_btn = Button(text="Back to Matrix Panel", size_hint_y=None, height=dp(45))
+        close_btn.bind(on_press=list_popup.dismiss)
+        main_box.add_widget(close_btn)
+        
+        list_popup.open()
+
+    # --- DELETE RECIPE WORKFLOW ENGINE ---
+    def delete_recipe_workflow(self, recipe_key, parent_popup_to_close):
+        confirm_box = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(15))
+        confirm_box.add_widget(Label(text=f"Permanently delete recipe:\n'{recipe_key}'?", font_size=dp(14), halign='center'))
+        
+        btn_layout = BoxLayout(orientation='horizontal', spacing=dp(10), size_hint_y=None, height=dp(40))
+        yes_btn = Button(text="Yes, Delete", background_color=(0.8, 0.2, 0.2, 1))
+        no_btn = Button(text="Cancel")
+        btn_layout.add_widget(yes_btn)
+        btn_layout.add_widget(no_btn)
+        confirm_box.add_widget(btn_layout)
+        
+        del_popup = Popup(title="Confirm Deletion", content=confirm_box, size_hint=(0.8, 0.35))
+        no_btn.bind(on_press=del_popup.dismiss)
+        
+        def execute_delete(instance):
+            if recipe_key in self.saved_recipes_db:
+                del self.saved_recipes_db[recipe_key]
+                self.save_recipes_to_disk()  # Sync permanent record file immediately
+                if self.recipe_title_label.text == f"Active Recipe: {recipe_key}":
+                    self.recipe_title_label.text = "Active Recipe: Unsaved System Instance"
+            del_popup.dismiss()
+            parent_popup_to_close.dismiss()
+            self.trigger_load_list_popup(None) # Refresh list view dynamically
+            
+        yes_btn.bind(on_press=execute_delete)
+        del_popup.open()
 
     # --- SUB-WINDOW RECIPE PROFILE PREVIEW ---
     def open_recipe_preview(self, recipe_key, primary_popup):
         record_profile = self.saved_recipes_db[recipe_key]
-        
         preview_layout = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
         preview_layout.add_widget(Label(text=f"Profile View: {recipe_key}", bold=True, size_hint_y=None, height=dp(25), color=(0, 0.7, 1, 1)))
+        
+        totals_display_grid = GridLayout(cols=3, size_hint_y=None, height=dp(35), spacing=dp(5))
+        totals_display_grid.add_widget(Label(text=f"Wt: {record_profile['top_totals']['weight']}", font_size=dp(12)))
+        totals_display_grid.add_widget(Label(text=f"Flour: {record_profile['top_totals']['flour']}", font_size=dp(12)))
+        totals_display_grid.add_widget(Label(text=f"Water: {record_profile['top_totals']['water']}", font_size=dp(12)))
+        preview_layout.add_widget(totals_display_grid)
+        
+        preview_scroll = ScrollView(size_hint=(1, 0.55))
+        data_grid = GridLayout(cols=5, size_hint_y=None, spacing=dp(3))
+        data_grid.bind(minimum_height=data_grid.setter('height'))
+        
+        cols_config = [("Sec", 0.15), ("Item", 0.25), ("Bak%", 0.2), ("Tru%", 0.2), ("Wt(g)", 0.2)]
+        for h_text, _ in cols_config:
+            data_grid.add_widget(Label(text=h_text, font_size=dp(11), bold=True))
+            
+        for row in record_profile["matrix_data"]:
+            for cell in row:
+                data_grid.add_widget(Label(text=str(cell), font_size=dp(11)))
+                
+        preview_scroll.add_widget(data_grid)
+        preview_layout.add_widget(preview_scroll)
+        
+        btn_layout = BoxLayout(orientation='horizontal', spacing=dp(8), size_hint_y=None, height=dp(48))
+        confirm_load_btn = Button(text="Inject Formulation into Grid", background_color=(0.15, 0.45, 0.65, 1), font_size=dp(13), bold=True)
+        view_del_btn = Button(text="Delete Recipe", background_color=(0.8, 0.2, 0.2, 1), font_size=dp(13))
+        cancel_btn = Button(text="Back", font_size=dp(13))
+        
+        btn_layout.add_widget(confirm_load_btn)
+        btn_layout.add_widget(view_del_btn)
+        btn_layout.add_widget(cancel_btn)
+        preview_layout.add_widget(btn_layout)
+        
+        preview_popup = Popup(title="Formula Inspection Sandbox Profile", content=preview_layout, size_hint=(0.96, 0.92), auto_dismiss=False)
+        cancel_btn.bind(on_press=preview_popup.dismiss)
+        
+        # Connect the view page delete button to our core delete workflow
+        view_del_btn.bind(on_press=lambda b: [preview_popup.dismiss(), self.delete_recipe_workflow(recipe_key, primary_popup)])
 
-        preview_table = GridLayout(cols=4, size_hint_y=None, height=dp(30), spacing=dp(2))
-        view_config = [("Ingredient", 0.4), ("Bakers %", 0.2), ("True %", 0.2), ("Weight", 0.2)]
-        for h_text, size_x in view_config:
-            lbl = Label(text=h_text, bold=True, font_size=dp(12), size_hint_x=size_x, halign='center', valign='middle')
-            lbl.bind(size=lbl.setter('text_size'))
-            preview_table.add_widget(lbl)
-        preview_layout.add_widget(preview_table)
-
-        scroll_preview = ScrollView(size_hint=(1, 0.65))
-        grid_preview = GridLayout(cols=4, spacing=dp(2), size_hint_y=None)
-        grid_preview.bind(minimum_height=grid_preview.setter('height'))
-
-        for sec, name, bp, tp, wt in record_profile["dataset"]:
-            row_items = [(name, 0.4), (bp, 0.2), (tp, 0.2), (wt, 0.2)]
-            for val, size_x in row_items:
-                c_lbl = Label(text=val, font_size=dp(12), size_hint_x=size_x, size_hint_y=None, height=dp(28), halign='center', valign='middle')
-                c_lbl.bind(size=c_lbl.setter('text_size'))
-                grid_preview.add_widget(c_lbl)
-
-        scroll_preview.add_widget(grid_preview)
-        preview_layout.add_widget(scroll_preview)
-
-        btn_preview_container = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(45), spacing=dp(10))
-        confirm_load_btn = Button(text="Load", background_color=(0.15, 0.45, 0.65, 1), font_size=dp(14), bold=True)
-        cancel_preview_btn = Button(text="Cancel", background_color=(0.8, 0.2, 0.2, 1), font_size=dp(14))
-
-        btn_preview_container.add_widget(confirm_load_btn)
-        btn_preview_container.add_widget(cancel_preview_btn)
-        preview_layout.add_widget(btn_preview_container)
-
-        preview_popup = Popup(title="Recipe Component Preview Window", content=preview_layout, size_hint=(0.95, 0.8), auto_dismiss=False)
-        cancel_preview_btn.bind(on_press=preview_popup.dismiss)
-
-        def inject_recipe_to_main_screen(inst):
+        def inject_recipe_to_main_screen(btn_instance):
             self._calculating = True
             try:
-                for _, fields in self.sponge_inputs.items():
-                    fields["bakers"].text = ""
-                    fields["true"].text = ""
-                    fields["weight"].text = ""
-                for _, fields in self.dough_inputs.items():
-                    fields["bakers"].text = ""
-                    fields["true"].text = ""
-                    fields["weight"].text = ""
-
-                for sec, name, bp, tp, wt in record_profile["dataset"]:
-                    target_dict = self.sponge_inputs if sec == "Sponge" else self.dough_inputs
+                for target_dict in [self.sponge_inputs, self.dough_inputs]:
+                    for name in target_dict:
+                        target_dict[name]["bakers"].text = ""
+                        target_dict[name]["true"].text = ""
+                        target_dict[name]["weight"].text = ""
+                        
+                for section, name, bp, tp, wt in record_profile["matrix_data"]:
+                    target_dict = self.sponge_inputs if section == "Sponge" else self.dough_inputs
                     if name not in target_dict:
-                        self.inject_new_ingredient_row(name, sec.lower())
-                    
+                        continue
                     target_dict[name]["bakers"].text = bp if float(bp or 0) > 0 else ""
                     target_dict[name]["true"].text = tp if float(tp or 0) > 0 else ""
                     target_dict[name]["weight"].text = wt if float(wt or 0) > 0 else ""
@@ -907,7 +775,7 @@ class DashboardScreen(Screen):
                 self.total_true_summary.text = record_profile["bottom_totals"]["true"]
                 self.total_weight_summary.text = record_profile["bottom_totals"]["weight"]
                 
-                self.recipe_title_label.text = "Active Recipe: {recipe_key}"
+                self.recipe_title_label.text = f"Active Recipe: {recipe_key}"
             finally:
                 self._calculating = False
 
